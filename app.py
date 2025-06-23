@@ -1,96 +1,65 @@
-import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
-import numpy as np
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>3D Warehouse Visualizer</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/examples/js/controls/OrbitControls.js"></script>
+  <script>
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#f0f0f0');
 
-st.set_page_config(layout="wide")
-st.title("📦 गोदाम में भंडारण का 3D दृश्य (Warehouse 3D View in Hindi)")
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.set(100, 200, 300);
 
-uploaded_file = st.file_uploader("एक्सेल फ़ाइल अपलोड करें", type=["xlsx"])
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-# Mapping godown names to physical layout positions
-godown_positions = {
-    "Old Godown 1": (0, 0),
-    "Old Godown 2": (60, 0),
-    "Old Godown 3": (120, 0),
-    "New Godown 1": (0, 120),
-    "New Godown 2": (60, 120),
-    "New Godown 3": (120, 120)
-}
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
 
-# Size of godown unit
-unit_width = 50
-unit_depth = 100
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(1, 2, 3);
+    scene.add(light);
 
-if uploaded_file:
-    xls = pd.ExcelFile(uploaded_file)
-    df = xls.parse("Godown Stok", skiprows=5)
-    df = df.dropna(subset=["Godown", "Party Name", "Quility"])
+    // Draw godown floors
+    const godowns = [
+      { name: "Old Godown 1", x: 0, y: 0 },
+      { name: "Old Godown 2", x: 60, y: 0 },
+      { name: "Old Godown 3", x: 120, y: 0 },
+      { name: "New Godown 1", x: 0, y: 120 },
+      { name: "New Godown 2", x: 60, y: 120 },
+      { name: "New Godown 3", x: 120, y: 120 }
+    ];
 
-    df = df.copy()
-    df["Bora"] = pd.to_numeric(df["Bora"], errors='coerce').fillna(0)
+    godowns.forEach(g => {
+      const geometry = new THREE.BoxGeometry(50, 1, 100);
+      const material = new THREE.MeshStandardMaterial({ color: '#cccccc' });
+      const floor = new THREE.Mesh(geometry, material);
+      floor.position.set(g.x + 25, 0.5, g.y + 50);
+      scene.add(floor);
+    });
 
-    df = df[df["Bora"] > 0]
+    // Example PP bag stack
+    const bagGeometry = new THREE.BoxGeometry(3, 10, 3);
+    const bagMaterial = new THREE.MeshStandardMaterial({ color: '#9C27B0' });
+    const stack = new THREE.Mesh(bagGeometry, bagMaterial);
+    stack.position.set(25, 5, 25); // inside Old Godown 1
+    scene.add(stack);
 
-    # Dropdowns
-    selected_godowns = st.multiselect("गोडाउन चुनें", df["Godown"].unique(), default=list(df["Godown"].unique()))
-    selected_commodities = st.multiselect("अनाज चुनें", df["Quility"].unique(), default=list(df["Quility"].unique()))
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
 
-    filtered_df = df[
-        df["Godown"].isin(selected_godowns) &
-        df["Quility"].isin(selected_commodities)
-    ]
-
-    if not filtered_df.empty:
-        fig = go.Figure()
-
-        # Plot godown boxes
-        for godown, (gx, gy) in godown_positions.items():
-            fig.add_trace(go.Scatter3d(
-                x=[gx, gx + unit_width],
-                y=[gy, gy + unit_depth],
-                z=[0, 0],
-                mode="markers",
-                marker=dict(size=1),
-                name=f"{godown}"
-            ))
-
-        # Plot bags as bars
-        for i, row in filtered_df.iterrows():
-            godown = row["Godown"]
-            if godown not in godown_positions:
-                continue
-            gx, gy = godown_positions[godown]
-
-            # Random placement within godown bounds
-            x_pos = gx + np.random.uniform(5, unit_width - 5)
-            y_pos = gy + np.random.uniform(5, unit_depth - 5)
-            height = row["Bora"] / 50  # scale height
-
-            fig.add_trace(go.Bar3d(
-                x=[x_pos],
-                y=[y_pos],
-                z=[0],
-                dx=3,
-                dy=3,
-                dz=[height],
-                name=row["Party Name"],
-                text=f"पार्टी: {row['Party Name']}<br>अनाज: {row['Quility']}<br>बोरी: {row['Bora']}",
-                hoverinfo="text",
-                opacity=0.8
-            ))
-
-        fig.update_layout(
-            scene=dict(
-                xaxis_title="🔲 गोडाउन चौड़ाई",
-                yaxis_title="🔳 गोडाउन लंबाई",
-                zaxis_title="⬆️ ऊँचाई (बोरी संख्या)",
-            ),
-            height=800,
-            showlegend=False,
-            margin=dict(l=0, r=0, t=0, b=0)
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("चयनित फ़िल्टर के लिए कोई डेटा नहीं मिला।")
+    animate();
+  </script>
+</body>
+</html>
