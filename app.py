@@ -34,11 +34,13 @@ with tab1:
         df["Bora"] = pd.to_numeric(df["Bora"], errors='coerce').fillna(0)
         df = df[df["Bora"] > 0]
 
-        selected_godowns = st.multiselect("गोडाउन चुनें", df["Godown"].unique(), default=list(df["Godown"].unique()))
-        selected_commodities = st.multiselect("अनाज चुनें", df["Quility"].unique(), default=list(df["Quility"].unique()))
+        max_bora = df["Bora"].max()
+
+        selected_godown = st.radio("📍 गोडाउन चुनें:", sorted(df["Godown"].unique()))
+        selected_commodities = st.multiselect("🌾 अनाज चुनें", df["Quility"].unique(), default=list(df["Quility"].unique()))
 
         filtered_df = df[
-            df["Godown"].isin(selected_godowns) &
+            (df["Godown"] == selected_godown) &
             df["Quility"].isin(selected_commodities)
         ]
 
@@ -67,7 +69,8 @@ with tab1:
                     if placed:
                         break
 
-                height = row["Bora"] / 50
+                # Normalize height between 1 and 25 ft
+                height = max(1, (row["Bora"] / max_bora) * 25)
 
                 fig.add_trace(go.Bar3d(
                     x=[x_pos],
@@ -82,22 +85,11 @@ with tab1:
                     opacity=0.9
                 ))
 
-            for godown, (gx, gy) in godown_positions.items():
-                fig.add_trace(go.Scatter3d(
-                    x=[gx + unit_width / 2],
-                    y=[gy + unit_depth / 2],
-                    z=[0],
-                    mode="text",
-                    text=[godown],
-                    textposition="top center",
-                    showlegend=False
-                ))
-
             fig.update_layout(
                 scene=dict(
                     xaxis_title="🔲 गोडाउन चौड़ाई",
                     yaxis_title="🔳 गोडाउन लंबाई",
-                    zaxis_title="⬆️ ऊँचाई (बोरी संख्या)",
+                    zaxis_title="⬆️ ऊँचाई (25 फीट तक)",
                 ),
                 height=850,
                 showlegend=False,
